@@ -1,0 +1,23 @@
+{
+    "name": "hexawebsystems/laravel-hexa-package-chatgpt",
+    "description": "ChatGPT/OpenAI API integration for the Hexa Core framework.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "hexa_package_chatgpt\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "hexa_package_chatgpt\\Providers\\ChatGptServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
