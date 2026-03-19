@@ -9,6 +9,7 @@ class ChatGptServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        ->mergeConfigFrom(__DIR__ . '/../../config/chatgpt.php', 'chatgpt');
         $this->app->singleton(ChatGptService::class);
     }
 
