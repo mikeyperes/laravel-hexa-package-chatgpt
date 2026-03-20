@@ -42,7 +42,7 @@ class ChatGptServiceProvider extends ServiceProvider
     {
         view()->composer('layouts.app', function ($view) {
             if (config('hexa.app_controls_sidebar', false)) return;
-            $view->getFactory()->startPush('sidebar-menu', view('chatgpt::partials.sidebar-menu')->render());
+            $view->getFactory()->startPush('sidebar-sandbox', view('chatgpt::partials.sidebar-menu')->render());
         });
     }
 }
