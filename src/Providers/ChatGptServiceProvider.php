@@ -38,16 +38,4 @@ class ChatGptServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Push sidebar menu items into core layout stacks.
-     *
-     * @return void
-     */
-    private function registerSidebarItems(): void
-    {
-        view()->composer('layouts.app', function ($view) {
-            if (config('hexa.app_controls_sidebar', false)) return;
-            $view->getFactory()->startPush('sidebar-sandbox', view('chatgpt::partials.sidebar-menu')->render());
-        });
-    }
 }
