@@ -30,7 +30,12 @@ class ChatGptServiceProvider extends ServiceProvider
     {
         $this->loadRoutesFrom(__DIR__ . '/../../routes/chatgpt.php');
         $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'chatgpt');
-        $this->registerSidebarItems();
+
+        // Sidebar links — registered via PackageRegistryService with auto permission checks
+        if (!config('hexa.app_controls_sidebar', false)) {
+            $registry = app(\hexa_core\Services\PackageRegistryService::class);
+            $registry->registerSidebarLink('chatgpt.index', 'ChatGPT', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'Sandbox', 'chatgpt', 81);
+        }
     }
 
     /**
