@@ -11,6 +11,18 @@ use hexa_package_chatgpt\Services\ChatGptService;
 class ChatGptServiceProvider extends ServiceProvider
 {
     /**
+     * Centralized list of available OpenAI/ChatGPT models.
+     *
+     * @var array<int, string>
+     */
+    public static array $models = [
+        'gpt-4o',
+        'gpt-4-turbo',
+        'gpt-4',
+        'gpt-3.5-turbo',
+    ];
+
+    /**
      * Register services into the container.
      *
      * @return void
@@ -19,6 +31,8 @@ class ChatGptServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../../config/chatgpt.php', 'chatgpt');
         $this->app->singleton(ChatGptService::class);
+
+        config(['chatgpt.available_models' => static::$models]);
     }
 
     /**
