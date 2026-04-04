@@ -50,6 +50,13 @@ class ChatGptServiceProvider extends ServiceProvider
             $registry = app(\hexa_core\Services\PackageRegistryService::class);
             $registry->registerSidebarLink('chatgpt.index', 'ChatGPT', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'Sandbox', 'chatgpt', 81);
         }
-    }
+    
+        // Documentation
+        if (class_exists(\hexa_core\Services\DocumentationService::class)) {
+            app(\hexa_core\Services\DocumentationService::class)->register('chatgpt', 'ChatGPT API', 'hexawebsystems/laravel-hexa-package-chatgpt', [
+                ['title' => 'Overview', 'content' => '<p>OpenAI ChatGPT API integration. Provides API key management, connection testing, and raw API endpoint.</p>'],
+            ]);
+        }
+}
 
 }
