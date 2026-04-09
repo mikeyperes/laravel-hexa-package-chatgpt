@@ -88,9 +88,8 @@ class ChatGptService
                         'content' => $content,
                         'model' => $data['model'] ?? $model,
                         'usage' => [
-                            'prompt_tokens' => $usage['prompt_tokens'] ?? 0,
-                            'completion_tokens' => $usage['completion_tokens'] ?? 0,
-                            'total_tokens' => $usage['total_tokens'] ?? 0,
+                            'input_tokens' => $usage['prompt_tokens'] ?? 0,
+                            'output_tokens' => $usage['completion_tokens'] ?? 0,
                         ],
                     ],
                 ];
