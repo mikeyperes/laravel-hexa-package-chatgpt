@@ -1,6 +1,6 @@
 <?php
 return [
-    'version' => '3.1.0',
+    'version' => '3.1.1',
 
     'models' => [
         ['id' => 'gpt-4o',         'name' => 'GPT-4o',         'type' => 'api'],
