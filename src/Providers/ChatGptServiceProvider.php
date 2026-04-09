@@ -51,7 +51,9 @@ class ChatGptServiceProvider extends ServiceProvider
         $registry->registerSidebarLink('chatgpt.index', 'Sandbox', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'ChatGPT', 'chatgpt', 81);
         if (method_exists($registry, 'registerPackage')) {
             $registry->registerPackage('chatgpt', 'hexawebsystems/laravel-hexa-package-chatgpt', [
-            'title' => 'ChatGPT',
+            'title' => 'ChatGPT API',
+            'color' => 'green',
+            'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
             'description' => 'Legacy OpenAI ChatGPT sandbox package for raw prompt and response testing.',
             'settingsRoute' => 'settings.chatgpt',
             'docsSlug' => 'chatgpt',
