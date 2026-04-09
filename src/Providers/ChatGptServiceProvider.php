@@ -45,11 +45,23 @@ class ChatGptServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__ . '/../../routes/chatgpt.php');
         $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'chatgpt');
 
-        // Sidebar links — registered via PackageRegistryService with auto permission checks
-        if (!config('hexa.app_controls_sidebar', false)) {
-            $registry = app(\hexa_core\Services\PackageRegistryService::class);
-            $registry->registerSidebarLink('chatgpt.index', 'ChatGPT', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'Sandbox', 'chatgpt', 81);
-        }
+        // Sidebar links — package-owned and auto-wired into the core registry.
+        $registry = app(\hexa_core\Services\PackageRegistryService::class);
+        $registry->registerSidebarLink('chatgpt.index', 'ChatGPT', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'Sandbox', 'chatgpt', 81);
+        $registry->registerPackage('chatgpt', 'hexawebsystems/laravel-hexa-package-chatgpt', [
+            'title' => 'ChatGPT',
+            'description' => 'Legacy OpenAI ChatGPT sandbox package for raw prompt and response testing.',
+            'settingsRoute' => 'settings.chatgpt',
+            'docsSlug' => 'chatgpt',
+            'instructions' => [
+                'Configure the OpenAI API key in the shared OpenAI settings page.',
+                'Use this package for raw ChatGPT package tests only; provider settings stay in OpenAI.',
+            ],
+            'apiLinks' => [
+                ['label' => 'OpenAI API Keys', 'url' => 'https://platform.openai.com/api-keys'],
+                ['label' => 'OpenAI Docs', 'url' => 'https://platform.openai.com/docs'],
+            ],
+        ]);
     
         // Documentation
         if (class_exists(\hexa_core\Services\DocumentationService::class)) {
