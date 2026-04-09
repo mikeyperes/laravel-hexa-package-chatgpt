@@ -47,7 +47,8 @@ class ChatGptServiceProvider extends ServiceProvider
 
         // Sidebar links — package-owned and auto-wired into the core registry.
         $registry = app(\hexa_core\Services\PackageRegistryService::class);
-        $registry->registerSidebarLink('chatgpt.index', 'ChatGPT', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'Sandbox', 'chatgpt', 81);
+        $registry->registerSidebarLink('settings.chatgpt', 'Settings', 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.11 2.37-2.37.996.608 2.296.07 2.572-1.065z', 'ChatGPT', 'chatgpt', 80);
+        $registry->registerSidebarLink('chatgpt.index', 'Sandbox', 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', 'ChatGPT', 'chatgpt', 81);
         if (method_exists($registry, 'registerPackage')) {
             $registry->registerPackage('chatgpt', 'hexawebsystems/laravel-hexa-package-chatgpt', [
             'title' => 'ChatGPT',

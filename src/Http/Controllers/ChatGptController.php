@@ -13,6 +13,44 @@ use hexa_core\Models\Setting;
 class ChatGptController extends Controller
 {
     /**
+     * Show the settings page.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function settings()
+    {
+        $apiKey = Setting::getValue('chatgpt_api_key', '');
+        return view('chatgpt::settings.index', [
+            'hasApiKey' => !empty($apiKey),
+            'maskedKey' => $apiKey ? str_repeat('•', max(0, strlen($apiKey) - 4)) . substr($apiKey, -4) : '',
+        ]);
+    }
+
+    /**
+     * Save the API key.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function saveKey(Request $request)
+    {
+        $request->validate(['api_key' => 'required|string|min:10']);
+        Setting::setValue('chatgpt_api_key', $request->input('api_key'));
+        return response()->json(['success' => true, 'message' => 'API key saved.']);
+    }
+
+    /**
+     * Test the API key.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function testKey()
+    {
+        $result = app(ChatGptService::class)->testApiKey();
+        return response()->json($result);
+    }
+
+    /**
      * Show the raw development/test page.
      *
      * @return \Illuminate\View\View
