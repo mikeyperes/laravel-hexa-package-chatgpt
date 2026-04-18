@@ -77,4 +77,34 @@ class ChatGptServiceProvider extends ServiceProvider
         }
 }
 
+/** Brand prefix for dropdown labels. */
+    public const BRAND = 'OpenAI';
+
+    /** Get 'Company — Model' label for a model id. */
+    public static function getDropdownLabel(string $modelId): string
+    {
+        foreach ((array) config('chatgpt.models', []) as $m) {
+            if (($m['id'] ?? '') === $modelId) {
+                return self::BRAND . ' — ' . ($m['name'] ?? $modelId);
+            }
+        }
+        return self::BRAND . ' — ' . $modelId;
+    }
+
+    /** Get 'Company — Model — $in/$out per 1M' label for a model id. */
+    public static function getDropdownLabelWithPrice(string $modelId): string
+    {
+        foreach ((array) config('chatgpt.models', []) as $m) {
+            if (($m['id'] ?? '') === $modelId) {
+                $name = $m['name'] ?? $modelId;
+                if (isset($m['price_input'], $m['price_output'])) {
+                    $in = rtrim(rtrim(number_format($m['price_input'], 2), '0'), '.');
+                    $out = rtrim(rtrim(number_format($m['price_output'], 2), '0'), '.');
+                    return self::BRAND . ' — ' . $name . ' — $' . $in . '/$' . $out . ' per 1M';
+                }
+                return self::BRAND . ' — ' . $name;
+            }
+        }
+        return self::BRAND . ' — ' . $modelId;
+    }
 }
