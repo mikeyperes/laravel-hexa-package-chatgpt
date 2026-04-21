@@ -23,6 +23,27 @@ class ChatGptServiceProvider extends ServiceProvider
     ];
 
     /**
+     * @return array<int, array{id: string, name: string}>
+     */
+    public static function getModels(): array
+    {
+        if (app()->bound(ChatGptService::class)) {
+            try {
+                return app(ChatGptService::class)->getAvailableModels();
+            } catch (\Throwable) {
+            }
+        }
+
+        return array_values(array_map(
+            static fn (array $model): array => [
+                'id' => (string) ($model['id'] ?? ''),
+                'name' => (string) ($model['name'] ?? ($model['id'] ?? '')),
+            ],
+            (array) config('chatgpt.models', [])
+        ));
+    }
+
+    /**
      * Register services into the container.
      *
      * @return void
@@ -32,7 +53,12 @@ class ChatGptServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../../config/chatgpt.php', 'chatgpt');
         $this->app->singleton(ChatGptService::class);
 
-        config(['chatgpt.available_models' => static::$models]);
+        config([
+            'chatgpt.available_models' => array_values(array_map(
+                static fn (array $model): string => (string) $model['id'],
+                static::getModels()
+            )),
+        ]);
     }
 
     /**
