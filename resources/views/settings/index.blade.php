@@ -7,8 +7,11 @@
     tokenInput: '',
     saving: false,
     testing: false,
+    syncing: false,
+    syncMode: null,
     message: '',
     messageType: 'success',
+    modelState: {{ \Illuminate\Support\Js::from($modelSync) }},
 
     async saveToken() {
         this.saving = true;
@@ -40,6 +43,36 @@
             this.messageType = d.success ? 'success' : 'error';
         } catch (e) { this.message = 'Network error'; this.messageType = 'error'; }
         this.testing = false;
+    },
+
+    async syncModels(purge = false) {
+        this.syncing = true;
+        this.syncMode = purge ? 'purge' : 'sync';
+        this.message = '';
+
+        try {
+            const r = await fetch(purge ? '{{ route('settings.chatgpt.models.purge-sync') }}' : '{{ route('settings.chatgpt.models.sync') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ purge_cache: purge })
+            });
+            const d = await r.json();
+            this.message = d.message;
+            this.messageType = d.success ? 'success' : 'error';
+            if (d.data) {
+                this.modelState = d.data;
+            }
+        } catch (e) {
+            this.message = 'Network error';
+            this.messageType = 'error';
+        }
+
+        this.syncing = false;
+        this.syncMode = null;
     }
 }">
     <div class="mb-6">
@@ -92,13 +125,30 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-base font-semibold text-gray-900 mb-3">Available Models</h2>
-        <div class="space-y-2">
-            @foreach(config('chatgpt.models', []) as $model)
-            <div class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5 text-sm">
-                <span class="font-medium text-gray-800">{{ $model['name'] }}</span>
-                <span class="text-xs text-gray-400 font-mono">{{ $model['id'] }}</span>
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="text-xs text-gray-500 space-y-1">
+                <p><span class="font-medium text-gray-700">Last updated:</span> <span x-text="modelState.last_synced_human || 'never'"></span></p>
+                <p><span class="font-medium text-gray-700">Source:</span> <span x-text="modelState.source_label || 'Packaged Defaults'"></span></p>
             </div>
-            @endforeach
+            <div class="flex items-center gap-2">
+                <button @click="syncModels(false)" :disabled="syncing" class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-60">
+                    <svg x-show="syncing && syncMode === 'sync'" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <span>Get Available Models</span>
+                </button>
+                <button @click="syncModels(true)" :disabled="syncing" class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-60">
+                    <svg x-show="syncing && syncMode === 'purge'" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <span>Purge Cache and Sync With Source</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            <template x-for="model in modelState.models" :key="model.id">
+                <div class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5 text-sm">
+                    <span class="font-medium text-gray-800" x-text="model.name"></span>
+                    <span class="text-xs text-gray-400 font-mono" x-text="model.id"></span>
+                </div>
+            </template>
         </div>
     </div>
 </div>

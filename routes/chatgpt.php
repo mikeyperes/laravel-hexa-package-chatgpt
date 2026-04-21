@@ -14,6 +14,8 @@ Route::middleware(['web', 'auth', 'locked', 'system_lock', 'two_factor', 'role']
     Route::get('/settings/chatgpt', [ChatGptController::class, 'settings'])->name('settings.chatgpt');
     Route::post('/settings/chatgpt/save', [ChatGptController::class, 'saveKey'])->name('settings.chatgpt.save');
     Route::post('/settings/chatgpt/test', [ChatGptController::class, 'testKey'])->name('settings.chatgpt.test');
+    Route::post('/settings/chatgpt/models/sync', [ChatGptController::class, 'syncModels'])->name('settings.chatgpt.models.sync');
+    Route::post('/settings/chatgpt/models/purge-sync', [ChatGptController::class, 'purgeAndSyncModels'])->name('settings.chatgpt.models.purge-sync');
 
     // Raw dev view
     Route::get('/raw-chatgpt', [ChatGptController::class, 'raw'])->name('chatgpt.index');

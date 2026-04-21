@@ -23,6 +23,7 @@ class ChatGptController extends Controller
         return view('chatgpt::settings.index', [
             'hasApiKey' => !empty($apiKey),
             'maskedKey' => $apiKey ? str_repeat('•', max(0, strlen($apiKey) - 4)) . substr($apiKey, -4) : '',
+            'modelSync' => app(ChatGptService::class)->getModelSyncState(),
         ]);
     }
 
@@ -48,6 +49,28 @@ class ChatGptController extends Controller
     {
         $result = app(ChatGptService::class)->testApiKey();
         return response()->json($result);
+    }
+
+    public function syncModels(Request $request)
+    {
+        $result = app(ChatGptService::class)->syncAvailableModels($request->boolean('purge_cache'));
+
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['state'],
+        ], $result['success'] ? 200 : 422);
+    }
+
+    public function purgeAndSyncModels()
+    {
+        $result = app(ChatGptService::class)->syncAvailableModels(true);
+
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['state'],
+        ], $result['success'] ? 200 : 422);
     }
 
     /**
