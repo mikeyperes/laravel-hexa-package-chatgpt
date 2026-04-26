@@ -218,20 +218,41 @@ class ChatGptService
     /**
      * @return array{success: bool, message: string, data: array|null}
      */
+    public function searchArticles(string $topic, int $count = 4, ?string $model = null): array
+    {
+        $count = max(2, min(10, $count));
+        $model ??= 'gpt-4o-mini';
+
+        $result = $this->searchArticlesViaChat($topic, $count, $model);
+        if (is_array($result['data'] ?? null)) {
+            $result['data']['model'] = $result['data']['model'] ?? $model;
+            $result['data']['search_backend'] = $result['data']['search_backend'] ?? 'openai_model_search';
+            $result['data']['search_backend_label'] = $result['data']['search_backend_label'] ?? 'OpenAI Model Search';
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{success: bool, message: string, data: array|null}
+     */
     public function searchArticlesOptimized(string $topic, int $count = 4, ?string $model = null): array
     {
         $count = max(2, min(10, $count));
         $model ??= 'gpt-4o-mini';
 
         $planResult = $this->buildOptimizedNewsQueryPlan($topic, $model);
+        $seedResult = $this->searchArticles($topic, max($count + 2, 4), $model);
         $usage = $this->aggregateUsage([
             (array) data_get($planResult, 'data.usage', []),
+            (array) data_get($seedResult, 'data.usage', []),
         ]);
 
         if (class_exists(\hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService::class)) {
             $optimized = app(\hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService::class)->search($topic, $count, 'openai', $model, [
                 'backend_label' => 'OpenAI Optimized Search',
                 'query_plan' => (array) data_get($planResult, 'data.query_plan', []),
+                'seed_articles' => (array) data_get($seedResult, 'data.articles', []),
             ]);
 
             if (is_array($optimized['data'] ?? null)) {
@@ -239,28 +260,26 @@ class ChatGptService
                 $optimized['data']['model'] = $optimized['data']['model'] ?? $model;
             }
 
-            return $optimized;
+            if ($optimized['success']) {
+                return $optimized;
+            }
         }
 
-        $legacy = $this->searchArticlesViaChat($topic, $count, $model);
-        if (is_array($legacy['data'] ?? null)) {
-            $legacy['data']['usage'] = $this->aggregateUsage([
-                (array) data_get($legacy, 'data.usage', []),
-                $usage,
-            ]);
-            $legacy['data']['model'] = $legacy['data']['model'] ?? $model;
-            $legacy['data']['query_plan'] = (array) data_get($planResult, 'data.query_plan', []);
-            $legacy['data']['search_backend'] = $legacy['data']['search_backend'] ?? 'openai_chat_search';
-            $legacy['data']['search_backend_label'] = $legacy['data']['search_backend_label'] ?? 'OpenAI Chat Search';
+        if ($seedResult['success'] && is_array($seedResult['data'] ?? null)) {
+            $seedResult['data']['usage'] = $usage;
+            $seedResult['data']['model'] = $seedResult['data']['model'] ?? $model;
+            $seedResult['data']['query_plan'] = (array) data_get($planResult, 'data.query_plan', []);
+            $seedResult['data']['search_backend'] = $seedResult['data']['search_backend'] ?? 'openai_model_search';
+            $seedResult['data']['search_backend_label'] = $seedResult['data']['search_backend_label'] ?? 'OpenAI Model Search';
         }
 
-        if ($legacy['success']) {
-            return $legacy;
+        if ($seedResult['success']) {
+            return $seedResult;
         }
 
         return [
             'success' => false,
-            'message' => $legacy['message'] ?? ($planResult['message'] ?? 'OpenAI optimized search failed.'),
+            'message' => $seedResult['message'] ?? ($planResult['message'] ?? 'OpenAI optimized search failed.'),
             'data' => [
                 'model' => $model,
                 'usage' => $usage,
