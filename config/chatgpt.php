@@ -1,8 +1,9 @@
 <?php
 return [
-    'version' => '3.1.8',
+    'version' => '3.1.9',
 
     'models' => [
+        ['id' => 'gpt-4o-mini',    'name' => 'GPT-4o Mini',    'type' => 'api', 'price_input' => 0.15, 'price_output' => 0.60],
         ['id' => 'gpt-4o',         'name' => 'GPT-4o',         'type' => 'api', 'price_input' => 2.5,  'price_output' => 10.0],
         ['id' => 'gpt-4-turbo',    'name' => 'GPT-4 Turbo',    'type' => 'api', 'price_input' => 10.0, 'price_output' => 30.0],
         ['id' => 'gpt-4',          'name' => 'GPT-4',          'type' => 'api', 'price_input' => 30.0, 'price_output' => 60.0],
