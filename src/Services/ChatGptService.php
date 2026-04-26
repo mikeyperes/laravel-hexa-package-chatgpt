@@ -214,6 +214,216 @@ class ChatGptService
         }
     }
 
+
+    /**
+     * @return array{success: bool, message: string, data: array|null}
+     */
+    public function searchArticlesOptimized(string $topic, int $count = 4, ?string $model = null): array
+    {
+        $count = max(2, min(10, $count));
+        $model ??= 'gpt-4o-mini';
+
+        $planResult = $this->buildOptimizedNewsQueryPlan($topic, $model);
+        $usage = $this->aggregateUsage([
+            (array) data_get($planResult, 'data.usage', []),
+        ]);
+
+        if (class_exists(\hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService::class)) {
+            $optimized = app(\hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService::class)->search($topic, $count, 'openai', $model, [
+                'backend_label' => 'OpenAI Optimized Search',
+                'query_plan' => (array) data_get($planResult, 'data.query_plan', []),
+            ]);
+
+            if (is_array($optimized['data'] ?? null)) {
+                $optimized['data']['usage'] = $usage;
+                $optimized['data']['model'] = $optimized['data']['model'] ?? $model;
+            }
+
+            return $optimized;
+        }
+
+        $legacy = $this->searchArticlesViaChat($topic, $count, $model);
+        if (is_array($legacy['data'] ?? null)) {
+            $legacy['data']['usage'] = $this->aggregateUsage([
+                (array) data_get($legacy, 'data.usage', []),
+                $usage,
+            ]);
+            $legacy['data']['model'] = $legacy['data']['model'] ?? $model;
+            $legacy['data']['query_plan'] = (array) data_get($planResult, 'data.query_plan', []);
+            $legacy['data']['search_backend'] = $legacy['data']['search_backend'] ?? 'openai_chat_search';
+            $legacy['data']['search_backend_label'] = $legacy['data']['search_backend_label'] ?? 'OpenAI Chat Search';
+        }
+
+        if ($legacy['success']) {
+            return $legacy;
+        }
+
+        return [
+            'success' => false,
+            'message' => $legacy['message'] ?? ($planResult['message'] ?? 'OpenAI optimized search failed.'),
+            'data' => [
+                'model' => $model,
+                'usage' => $usage,
+                'query_plan' => (array) data_get($planResult, 'data.query_plan', []),
+                'search_backend' => 'openai_optimized_search',
+                'search_backend_label' => 'OpenAI Optimized Search',
+            ],
+        ];
+    }
+
+    /**
+     * @return array{success: bool, message: string, data: array|null}
+     */
+    private function buildOptimizedNewsQueryPlan(string $topic, string $model): array
+    {
+        $systemPrompt = 'You are a news-search strategist. Build precise search-engine queries for finding real recent journalism.';
+        $userMessage = "Topic: {$topic}
+"
+            . "Return ONLY a JSON object with keys: queries, required_terms, avoid_terms, angle. "
+            . "queries must be an array of 3 to 5 concise search queries aimed at finding real recent news articles. "
+            . "required_terms must be an array of 1 to 4 terms that every good article should match. "
+            . "avoid_terms must be an array of low-value terms to avoid, like press release, sponsored, roundup, or directory when relevant. "
+            . "angle must be a short phrase describing the best concrete news angle.
+"
+            . "Do not include markdown or explanations.";
+
+        $result = $this->chat($systemPrompt, $userMessage, $model, 0.2, 800);
+        if (!$result['success']) {
+            return $result;
+        }
+
+        $plan = $this->parseJsonObject((string) data_get($result, 'data.content', ''));
+        if (!$plan) {
+            return [
+                'success' => false,
+                'message' => 'OpenAI did not return a usable search plan.',
+                'data' => $result['data'],
+            ];
+        }
+
+        $result['data']['query_plan'] = $plan;
+
+        return $result;
+    }
+
+    /**
+     * @return array{success: bool, message: string, data: array|null}
+     */
+    private function searchArticlesViaChat(string $topic, int $count, string $model): array
+    {
+        $systemPrompt = 'You are a research assistant with web access. Find real, recent news articles. Output ONLY valid JSON.';
+        $userMessage = "Search the web for {$count} recent news articles about: {$topic}. "
+            . "Return only LIVE, canonical article pages from reputable publishers. "
+            . "Do NOT guess URL slugs. Do NOT return homepages, search pages, tag pages, category pages, topic pages, author pages, archive pages, AMP pages, cached pages, redirect links, or Google intermediary links. "
+            . "For each article return the exact canonical URL, the article title, and a brief description under 20 words. "
+            . "Return ONLY a JSON array of objects with keys: url, title, description.";
+
+        $result = $this->chat($systemPrompt, $userMessage, $model, 0.3, 2048);
+        if (!$result['success']) {
+            return $result;
+        }
+
+        $articles = $this->parseArticleArray((string) data_get($result, 'data.content', ''));
+        if ($articles === []) {
+            return [
+                'success' => false,
+                'message' => 'OpenAI returned no usable article JSON.',
+                'data' => $result['data'],
+            ];
+        }
+
+        $result['data']['articles'] = $articles;
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array{url: string, title: string, description: string}>
+     */
+    private function parseArticleArray(string $text): array
+    {
+        $json = $this->extractJsonSegment($text, '[', ']');
+        if ($json === null) {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $articles = [];
+        foreach ($decoded as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $url = trim((string) ($item['url'] ?? ''));
+            $title = trim((string) ($item['title'] ?? ''));
+            if ($url === '' || $title === '') {
+                continue;
+            }
+
+            $articles[] = [
+                'url' => $url,
+                'title' => $title,
+                'description' => trim((string) ($item['description'] ?? '')),
+            ];
+        }
+
+        return $articles;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseJsonObject(string $text): ?array
+    {
+        $json = $this->extractJsonSegment($text, '{', '}');
+        if ($json === null) {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function extractJsonSegment(string $text, string $openChar, string $closeChar): ?string
+    {
+        $start = strpos($text, $openChar);
+        $end = strrpos($text, $closeChar);
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        return substr($text, $start, $end - $start + 1);
+    }
+
+    /**
+     * @param array<int, array<string, int|float>> $usages
+     * @return array{input_tokens: int, output_tokens: int, total_tokens: int}
+     */
+    private function aggregateUsage(array $usages): array
+    {
+        $input = 0;
+        $output = 0;
+        $total = 0;
+
+        foreach ($usages as $usage) {
+            $input += (int) ($usage['input_tokens'] ?? 0);
+            $output += (int) ($usage['output_tokens'] ?? 0);
+            $total += (int) ($usage['total_tokens'] ?? (($usage['input_tokens'] ?? 0) + ($usage['output_tokens'] ?? 0)));
+        }
+
+        return [
+            'input_tokens' => $input,
+            'output_tokens' => $output,
+            'total_tokens' => $total,
+        ];
+    }
+
     /**
      * Spin/rewrite article content.
      *
