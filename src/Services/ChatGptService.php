@@ -4,7 +4,6 @@ namespace hexa_package_chatgpt\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use hexa_core\Models\Setting;
 
@@ -209,7 +208,11 @@ class ChatGptService
             $errorMsg = $error['error']['message'] ?? "HTTP {$response->status()}";
             return ['success' => false, 'message' => "OpenAI error: {$errorMsg}", 'data' => null];
         } catch (\Exception $e) {
-            Log::error('ChatGptService::chat error', ['error' => $e->getMessage()]);
+            hexaLogError('chatgpt.api', 'ChatGptService::chat error', [
+                'error' => $e->getMessage(),
+                'operation' => 'chat',
+                'model' => $model,
+            ]);
             return ['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'data' => null];
         }
     }

@@ -1,6 +1,6 @@
 <?php
 return [
-    'version' => '3.1.9',
+    'version' => '3.1.10',
 
     'models' => [
         ['id' => 'gpt-4o-mini',    'name' => 'GPT-4o Mini',    'type' => 'api', 'price_input' => 0.15, 'price_output' => 0.60],
