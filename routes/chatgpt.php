@@ -18,7 +18,11 @@ Route::middleware(['web', 'auth', 'locked', 'system_lock', 'two_factor', 'role']
     Route::post('/settings/chatgpt/models/purge-sync', [ChatGptController::class, 'purgeAndSyncModels'])->name('settings.chatgpt.models.purge-sync');
 
     // Raw dev view
-    Route::get('/raw-chatgpt', [ChatGptController::class, 'raw'])->name('chatgpt.index');
+    Route::hexaRawPage('/raw-chatgpt', [ChatGptController::class, 'raw'], 'chatgpt.index', [
+        'package' => 'chatgpt',
+        'label' => 'Playground',
+        'sortOrder' => 10,
+    ]);
 
     // API endpoints
     Route::post('/chatgpt/chat', [ChatGptController::class, 'chat'])->name('chatgpt.chat');
