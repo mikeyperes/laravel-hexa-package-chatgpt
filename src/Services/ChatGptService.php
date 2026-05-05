@@ -298,11 +298,11 @@ class ChatGptService
      */
     private function buildOptimizedNewsQueryPlan(string $topic, string $model): array
     {
-        $systemPrompt = 'You are a news-search strategist. Build precise search-engine queries for finding real recent journalism.';
+        $systemPrompt = 'You are an article-search strategist. Build precise search-engine queries for finding real published journalism, features, guides, and analysis.';
         $userMessage = "Topic: {$topic}
 "
             . "Return ONLY a JSON object with keys: queries, required_terms, avoid_terms, angle. "
-            . "queries must be an array of 3 to 5 concise search queries aimed at finding real recent news articles. "
+            . "queries must be an array of 3 to 5 concise search queries aimed at finding real published articles, reported features, guides, or analysis. "
             . "required_terms must be an array of 1 to 4 terms that every good article should match. "
             . "avoid_terms must be an array of low-value terms to avoid, like press release, sponsored, roundup, or directory when relevant. "
             . "angle must be a short phrase describing the best concrete news angle.
@@ -333,8 +333,9 @@ class ChatGptService
      */
     private function searchArticlesViaChat(string $topic, int $count, string $model): array
     {
-        $systemPrompt = 'You are a research assistant with web access. Find real, recent news articles. Output ONLY valid JSON.';
-        $userMessage = "Search the web for {$count} recent news articles about: {$topic}. "
+        $systemPrompt = 'You are a research assistant with web access. Find real, recent published articles. Output ONLY valid JSON.';
+        $userMessage = "Search the web for {$count} real published articles about: {$topic}. "
+            . "Prefer recent reported features, analysis, explainers, guides, or news articles from reputable publishers. "
             . "Return only LIVE, canonical article pages from reputable publishers. "
             . "Do NOT guess URL slugs. Do NOT return homepages, search pages, tag pages, category pages, topic pages, author pages, archive pages, AMP pages, cached pages, redirect links, or Google intermediary links. "
             . "For each article return the exact canonical URL, the article title, and a brief description under 20 words. "
