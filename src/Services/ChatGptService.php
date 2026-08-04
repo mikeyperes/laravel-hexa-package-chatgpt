@@ -3,18 +3,18 @@
 namespace hexa_package_chatgpt\Services;
 
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
+use hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService;
+use hexa_core\AI\Contracts\AiTransactionRecorder;
 use hexa_core\Models\Setting;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 class ChatGptService
 {
     private const MODEL_CACHE_KEY = 'chatgpt:available-models';
+
     private const MODEL_STATE_SETTING_KEY = 'chatgpt_available_models_state';
 
-    /**
-     * @return string|null
-     */
     private function getApiKey(): ?string
     {
         return Setting::getValue('chatgpt_api_key');
@@ -22,7 +22,7 @@ class ChatGptService
 
     public function hasApiKey(): bool
     {
-        return !empty($this->getApiKey());
+        return ! empty($this->getApiKey());
     }
 
     /**
@@ -71,7 +71,7 @@ class ChatGptService
 
         $stored = $this->storedModelSyncState();
 
-        if (!$this->hasApiKey()) {
+        if (! $this->hasApiKey()) {
             $state = $this->fallbackState('No OpenAI API key configured. Showing packaged defaults.', $stored);
             Cache::forever(self::MODEL_CACHE_KEY, $state);
 
@@ -83,13 +83,13 @@ class ChatGptService
         }
 
         try {
-            $response = Http::withHeaders(['Authorization' => 'Bearer ' . $this->getApiKey()])
+            $response = Http::withHeaders(['Authorization' => 'Bearer '.$this->getApiKey()])
                 ->timeout(20)
                 ->get('https://api.openai.com/v1/models');
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $message = $response->json('error.message')
-                    ?: ('OpenAI returned HTTP ' . $response->status() . '.');
+                    ?: ('OpenAI returned HTTP '.$response->status().'.');
 
                 throw new \RuntimeException($message);
             }
@@ -114,7 +114,7 @@ class ChatGptService
 
             return [
                 'success' => false,
-                'message' => 'Model sync failed: ' . $e->getMessage(),
+                'message' => 'Model sync failed: '.$e->getMessage(),
                 'state' => $state,
             ];
         }
@@ -128,13 +128,13 @@ class ChatGptService
     /**
      * Test the API key.
      *
-     * @param string|null $apiKey Override key to test.
+     * @param  string|null  $apiKey  Override key to test.
      * @return array{success: bool, message: string}
      */
     public function testApiKey(?string $apiKey = null): array
     {
         $key = $apiKey ?? $this->getApiKey();
-        if (!$key) {
+        if (! $key) {
             return ['success' => false, 'message' => 'No ChatGPT/OpenAI API key configured.'];
         }
 
@@ -149,28 +149,44 @@ class ChatGptService
             if ($response->status() === 401) {
                 return ['success' => false, 'message' => 'Invalid API key.'];
             }
+
             return ['success' => false, 'message' => "OpenAI returned HTTP {$response->status()}."];
-        } catch (\Exception $e) {
-            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => 'Error: '.$e->getMessage()];
         }
     }
 
     /**
      * Send a chat completion request.
      *
-     * @param string $systemPrompt System-level instructions.
-     * @param string $userMessage The user/article content.
-     * @param string $model OpenAI model name.
-     * @param float $temperature 0-2, lower = more deterministic.
-     * @param int $maxTokens Max response tokens.
+     * @param  string  $systemPrompt  System-level instructions.
+     * @param  string  $userMessage  The user/article content.
+     * @param  string  $model  OpenAI model name.
+     * @param  float  $temperature  0-2, lower = more deterministic.
+     * @param  int  $maxTokens  Max response tokens.
      * @return array{success: bool, message: string, data: array|null}
      */
     public function chat(string $systemPrompt, string $userMessage, string $model = 'gpt-4o', float $temperature = 0.7, int $maxTokens = 4096): array
     {
         $key = $this->getApiKey();
-        if (!$key) {
+        if (! $key) {
             return ['success' => false, 'message' => 'No ChatGPT/OpenAI API key configured.', 'data' => null];
         }
+
+        $span = app(AiTransactionRecorder::class)->start([
+            'provider' => 'openai',
+            'package' => 'hexawebsystems/laravel-hexa-package-chatgpt',
+            'model' => $model,
+            'operation' => 'chat.completions.create',
+            'endpoint' => '/v1/chat/completions',
+            'request_metadata' => [
+                'timeout_seconds' => 120,
+                'max_tokens' => $maxTokens,
+                'temperature' => $temperature,
+                'message_count' => 2,
+                'has_system_instruction' => true,
+            ],
+        ]);
 
         try {
             $response = Http::withHeaders(['Authorization' => "Bearer {$key}"])
@@ -188,7 +204,27 @@ class ChatGptService
             if ($response->successful()) {
                 $data = $response->json();
                 $content = $data['choices'][0]['message']['content'] ?? '';
-                $usage = $data['usage'] ?? [];
+                $usage = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+                $usage['input_tokens'] = (int) ($usage['input_tokens'] ?? $usage['prompt_tokens'] ?? 0);
+                $usage['output_tokens'] = (int) ($usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0);
+                $usage['total_tokens'] = (int) ($usage['total_tokens']
+                    ?? ($usage['input_tokens'] + $usage['output_tokens']));
+                $toolCalls = (array) data_get($data, 'choices.0.message.tool_calls', []);
+                $usage['tool_use_count'] = count($toolCalls);
+
+                $span->succeed([
+                    'provider_request_id' => $data['id'] ?? $response->header('x-request-id'),
+                    'model' => $data['model'] ?? $model,
+                    'http_status' => $response->status(),
+                    'service_tier' => $data['service_tier'] ?? $usage['service_tier'] ?? null,
+                    'finish_reason' => data_get($data, 'choices.0.finish_reason'),
+                    'usage' => $usage,
+                    'response_metadata' => [
+                        'choice_count' => count((array) ($data['choices'] ?? [])),
+                        'has_tool_calls' => $toolCalls !== [],
+                        'system_fingerprint' => $data['system_fingerprint'] ?? null,
+                    ],
+                ]);
 
                 return [
                     'success' => true,
@@ -196,27 +232,34 @@ class ChatGptService
                     'data' => [
                         'content' => $content,
                         'model' => $data['model'] ?? $model,
-                        'usage' => [
-                            'input_tokens' => $usage['prompt_tokens'] ?? 0,
-                            'output_tokens' => $usage['completion_tokens'] ?? 0,
-                        ],
+                        'usage' => $usage,
                     ],
                 ];
             }
 
             $error = $response->json();
             $errorMsg = $error['error']['message'] ?? "HTTP {$response->status()}";
+            $span->fail($errorMsg, [
+                'provider_request_id' => $response->header('x-request-id'),
+                'model' => $model,
+                'http_status' => $response->status(),
+                'error_type' => $error['error']['type'] ?? 'openai_http_error',
+                'error_code' => $error['error']['code'] ?? null,
+                'usage' => is_array($error['usage'] ?? null) ? $error['usage'] : [],
+            ]);
+
             return ['success' => false, 'message' => "OpenAI error: {$errorMsg}", 'data' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            $span->fail($e, ['model' => $model]);
             hexaLogError('chatgpt.api', 'ChatGptService::chat error', [
                 'error' => $e->getMessage(),
                 'operation' => 'chat',
                 'model' => $model,
             ]);
-            return ['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'data' => null];
+
+            return ['success' => false, 'message' => 'Error: '.$e->getMessage(), 'data' => null];
         }
     }
-
 
     /**
      * @return array{success: bool, message: string, data: array|null}
@@ -251,8 +294,8 @@ class ChatGptService
             (array) data_get($seedResult, 'data.usage', []),
         ]);
 
-        if (class_exists(\hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService::class)) {
-            $optimized = app(\hexa_app_publish\Discovery\Sources\Services\OptimizedNewsSearchService::class)->search($topic, $count, 'openai', $model, [
+        if (class_exists(OptimizedNewsSearchService::class)) {
+            $optimized = app(OptimizedNewsSearchService::class)->search($topic, $count, 'openai', $model, [
                 'backend_label' => 'OpenAI Optimized Search',
                 'query_plan' => (array) data_get($planResult, 'data.query_plan', []),
                 'seed_articles' => (array) data_get($seedResult, 'data.articles', []),
@@ -301,21 +344,21 @@ class ChatGptService
         $systemPrompt = 'You are an article-search strategist. Build precise search-engine queries for finding real published journalism, features, guides, and analysis.';
         $userMessage = "Topic: {$topic}
 "
-            . "Return ONLY a JSON object with keys: queries, required_terms, avoid_terms, angle. "
-            . "queries must be an array of 3 to 5 concise search queries aimed at finding real published articles, reported features, guides, or analysis. "
-            . "required_terms must be an array of 1 to 4 terms that every good article should match. "
-            . "avoid_terms must be an array of low-value terms to avoid, like press release, sponsored, roundup, or directory when relevant. "
-            . "angle must be a short phrase describing the best concrete news angle.
-"
-            . "Do not include markdown or explanations.";
+            .'Return ONLY a JSON object with keys: queries, required_terms, avoid_terms, angle. '
+            .'queries must be an array of 3 to 5 concise search queries aimed at finding real published articles, reported features, guides, or analysis. '
+            .'required_terms must be an array of 1 to 4 terms that every good article should match. '
+            .'avoid_terms must be an array of low-value terms to avoid, like press release, sponsored, roundup, or directory when relevant. '
+            .'angle must be a short phrase describing the best concrete news angle.
+'
+            .'Do not include markdown or explanations.';
 
         $result = $this->chat($systemPrompt, $userMessage, $model, 0.2, 800);
-        if (!$result['success']) {
+        if (! $result['success']) {
             return $result;
         }
 
         $plan = $this->parseJsonObject((string) data_get($result, 'data.content', ''));
-        if (!$plan) {
+        if (! $plan) {
             return [
                 'success' => false,
                 'message' => 'OpenAI did not return a usable search plan.',
@@ -335,14 +378,14 @@ class ChatGptService
     {
         $systemPrompt = 'You are a research assistant with web access. Find real, recent published articles. Output ONLY valid JSON.';
         $userMessage = "Search the web for {$count} real published articles about: {$topic}. "
-            . "Prefer recent reported features, analysis, explainers, guides, or news articles from reputable publishers. "
-            . "Return only LIVE, canonical article pages from reputable publishers. "
-            . "Do NOT guess URL slugs. Do NOT return homepages, search pages, tag pages, category pages, topic pages, author pages, archive pages, AMP pages, cached pages, redirect links, or Google intermediary links. "
-            . "For each article return the exact canonical URL, the article title, and a brief description under 20 words. "
-            . "Return ONLY a JSON array of objects with keys: url, title, description.";
+            .'Prefer recent reported features, analysis, explainers, guides, or news articles from reputable publishers. '
+            .'Return only LIVE, canonical article pages from reputable publishers. '
+            .'Do NOT guess URL slugs. Do NOT return homepages, search pages, tag pages, category pages, topic pages, author pages, archive pages, AMP pages, cached pages, redirect links, or Google intermediary links. '
+            .'For each article return the exact canonical URL, the article title, and a brief description under 20 words. '
+            .'Return ONLY a JSON array of objects with keys: url, title, description.';
 
         $result = $this->chat($systemPrompt, $userMessage, $model, 0.3, 2048);
-        if (!$result['success']) {
+        if (! $result['success']) {
             return $result;
         }
 
@@ -371,13 +414,13 @@ class ChatGptService
         }
 
         $decoded = json_decode($json, true);
-        if (!is_array($decoded)) {
+        if (! is_array($decoded)) {
             return [];
         }
 
         $articles = [];
         foreach ($decoded as $item) {
-            if (!is_array($item)) {
+            if (! is_array($item)) {
                 continue;
             }
 
@@ -425,7 +468,7 @@ class ChatGptService
     }
 
     /**
-     * @param array<int, array<string, int|float>> $usages
+     * @param  array<int, array<string, int|float>>  $usages
      * @return array{input_tokens: int, output_tokens: int, total_tokens: int}
      */
     private function aggregateUsage(array $usages): array
@@ -450,15 +493,15 @@ class ChatGptService
     /**
      * Spin/rewrite article content.
      *
-     * @param string $articleContent The original article content.
-     * @param string $instruction User instruction (e.g. "optimize for SEO", "adjust tone").
-     * @param string|null $articleType Article type for context.
-     * @param string|null $tone Desired tone.
+     * @param  string  $articleContent  The original article content.
+     * @param  string  $instruction  User instruction (e.g. "optimize for SEO", "adjust tone").
+     * @param  string|null  $articleType  Article type for context.
+     * @param  string|null  $tone  Desired tone.
      * @return array{success: bool, message: string, data: array|null}
      */
     public function spinArticle(string $articleContent, string $instruction = '', ?string $articleType = null, ?string $tone = null): array
     {
-        $systemPrompt = "You are a professional content editor and writer. Rewrite the provided article content.";
+        $systemPrompt = 'You are a professional content editor and writer. Rewrite the provided article content.';
 
         if ($articleType) {
             $systemPrompt .= " The article type is: {$articleType}.";
@@ -467,7 +510,7 @@ class ChatGptService
             $systemPrompt .= " Write in a {$tone} tone.";
         }
 
-        $systemPrompt .= " Output ONLY the rewritten article content in HTML format. Do not include explanations or commentary.";
+        $systemPrompt .= ' Output ONLY the rewritten article content in HTML format. Do not include explanations or commentary.';
 
         $userMessage = '';
         if ($instruction) {
@@ -488,12 +531,12 @@ class ChatGptService
                 'id' => (string) ($model['id'] ?? ''),
                 'name' => (string) ($model['name'] ?? ($model['id'] ?? '')),
             ],
-            array_filter((array) config('chatgpt.models', []), static fn (array $model): bool => !empty($model['id']))
+            array_filter((array) config('chatgpt.models', []), static fn (array $model): bool => ! empty($model['id']))
         ));
     }
 
     /**
-     * @param array<int, array<string, mixed>> $remoteModels
+     * @param  array<int, array<string, mixed>>  $remoteModels
      * @return array<int, array{id: string, name: string}>
      */
     private function normalizeRemoteModels(array $remoteModels): array
@@ -504,7 +547,7 @@ class ChatGptService
         return collect($remoteModels)
             ->map(function ($model) use ($knownNames) {
                 $id = trim((string) ($model['id'] ?? ''));
-                if (!$this->isSupportedTextModel($id)) {
+                if (! $this->isSupportedTextModel($id)) {
                     return null;
                 }
 
@@ -561,7 +604,7 @@ class ChatGptService
     private function storedModelSyncState(): ?array
     {
         $raw = Setting::getValue(self::MODEL_STATE_SETTING_KEY);
-        if (!is_string($raw) || trim($raw) === '') {
+        if (! is_string($raw) || trim($raw) === '') {
             return null;
         }
 
@@ -571,7 +614,7 @@ class ChatGptService
             return null;
         }
 
-        if (!is_array($decoded) || !isset($decoded['models']) || !is_array($decoded['models'])) {
+        if (! is_array($decoded) || ! isset($decoded['models']) || ! is_array($decoded['models'])) {
             return null;
         }
 
@@ -579,7 +622,7 @@ class ChatGptService
             $decoded['models'],
             (string) ($decoded['source'] ?? 'remote_api'),
             (string) ($decoded['message'] ?? 'Using last successful sync.'),
-            !empty($decoded['last_synced_at']) ? (string) $decoded['last_synced_at'] : null
+            ! empty($decoded['last_synced_at']) ? (string) $decoded['last_synced_at'] : null
         );
     }
 
@@ -589,11 +632,11 @@ class ChatGptService
             return false;
         }
 
-        if (!preg_match('/^(gpt-|o[1-9]|o\\d)/', $modelId)) {
+        if (! preg_match('/^(gpt-|o[1-9]|o\\d)/', $modelId)) {
             return false;
         }
 
-        return !preg_match('/(audio|realtime|transcribe|tts|moderation|embedding|whisper|image|vision|dall-e|search|deep-research|chatgpt-|computer-use)/i', $modelId);
+        return ! preg_match('/(audio|realtime|transcribe|tts|moderation|embedding|whisper|image|vision|dall-e|search|deep-research|chatgpt-|computer-use)/i', $modelId);
     }
 
     private function humanizeModelId(string $modelId): string
