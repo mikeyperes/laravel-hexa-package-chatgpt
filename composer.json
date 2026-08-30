@@ -2,7 +2,7 @@
     "name": "hexawebsystems/laravel-hexa-package-chatgpt",
     "description": "ChatGPT/OpenAI — API integration for AI chat completions, content generation, and conversational AI features.",
     "type": "library",
-    "version": "3.1.15",
+    "version": "3.1.16",
     "license": "proprietary",
     "require": {
         "php": "^8.2",
