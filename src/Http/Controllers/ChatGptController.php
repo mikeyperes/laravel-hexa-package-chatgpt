@@ -22,7 +22,7 @@ class ChatGptController extends Controller
         $apiKey = Setting::getValue('chatgpt_api_key', '');
         return view('chatgpt::settings.index', [
             'hasApiKey' => !empty($apiKey),
-            'maskedKey' => $apiKey ? str_repeat('•', max(0, strlen($apiKey) - 4)) . substr($apiKey, -4) : '',
+            'maskedKey' => $this->maskApiKey($apiKey),
             'modelSync' => app(ChatGptService::class)->getModelSyncState(),
         ]);
     }
@@ -35,9 +35,18 @@ class ChatGptController extends Controller
      */
     public function saveKey(Request $request)
     {
-        $request->validate(['api_key' => 'required|string|min:10']);
-        Setting::setValue('chatgpt_api_key', $request->input('api_key'));
-        return response()->json(['success' => true, 'message' => 'API key saved.']);
+        $validated = $request->validate([
+            'api_key' => 'required|string|min:10|max:512',
+        ]);
+        $apiKey = trim((string) $validated['api_key']);
+
+        Setting::setValue('chatgpt_api_key', $apiKey);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'API key saved. Run Test API Status to verify provider access.',
+            'masked_key' => $this->maskApiKey($apiKey),
+        ]);
     }
 
     /**
@@ -81,7 +90,7 @@ class ChatGptController extends Controller
     public function raw()
     {
         $apiKey = Setting::getValue('chatgpt_api_key', '');
-        $maskedKey = $apiKey ? str_repeat('*', max(0, strlen($apiKey) - 4)) . substr($apiKey, -4) : '';
+        $maskedKey = $this->maskApiKey($apiKey);
 
         return view('chatgpt::raw.index', [
             'hasApiKey' => !empty($apiKey),
@@ -113,5 +122,10 @@ class ChatGptController extends Controller
         );
 
         return response()->json($result);
+    }
+
+    private function maskApiKey(?string $apiKey): string
+    {
+        return filled($apiKey) ? '************' . substr((string) $apiKey, -4) : '';
     }
 }

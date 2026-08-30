@@ -83,11 +83,15 @@ class ChatGptServiceProvider extends ServiceProvider
             'settingsShellClass' => 'max-w-4xl',
             'docsSlug' => 'chatgpt',
             'instructions' => [
-                'Configure the OpenAI API key in the shared OpenAI settings page.',
-                'Use the Labs raw page for package-only ChatGPT tests; provider settings stay in OpenAI.',
+                'Create or rotate the OpenAI API key from the OpenAI API Keys page.',
+                'Add funds or confirm payment details in OpenAI Billing & Credits.',
+                'Save the key, then run Test API Status to verify provider access.',
+                'Review account consumption on the OpenAI Usage page.',
             ],
             'apiLinks' => [
                 ['label' => 'OpenAI API Keys', 'url' => 'https://platform.openai.com/api-keys'],
+                ['label' => 'Billing & Credits', 'url' => 'https://platform.openai.com/settings/organization/billing/overview'],
+                ['label' => 'Usage', 'url' => 'https://platform.openai.com/usage'],
                 ['label' => 'OpenAI Docs', 'url' => 'https://platform.openai.com/docs'],
             ],
             ]);
