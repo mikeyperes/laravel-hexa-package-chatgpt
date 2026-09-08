@@ -4,6 +4,7 @@ namespace hexa_package_chatgpt\Services;
 
 use Carbon\Carbon;
 use hexa_core\AI\Contracts\AiTransactionRecorder;
+use hexa_core\AI\Contracts\ArticleSearchOptimizer;
 use hexa_core\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -285,8 +286,6 @@ class ChatGptService
     {
         $count = max(2, min(10, $count));
         $model ??= 'gpt-4o-mini';
-        $optimizedSearchClass = 'hexa_app_publish\\Discovery\\Sources\\Services\\OptimizedNewsSearchService';
-
         $planResult = $this->buildOptimizedNewsQueryPlan($topic, $model);
         $seedResult = $this->searchArticles($topic, max($count + 2, 4), $model);
         $usage = $this->aggregateUsage([
@@ -294,8 +293,8 @@ class ChatGptService
             (array) data_get($seedResult, 'data.usage', []),
         ]);
 
-        if (class_exists($optimizedSearchClass)) {
-            $optimized = app($optimizedSearchClass)->search($topic, $count, 'openai', $model, [
+        if (app()->bound(ArticleSearchOptimizer::class)) {
+            $optimized = app(ArticleSearchOptimizer::class)->search($topic, $count, 'openai', $model, [
                 'backend_label' => 'OpenAI Optimized Search',
                 'query_plan' => (array) data_get($planResult, 'data.query_plan', []),
                 'seed_articles' => (array) data_get($seedResult, 'data.articles', []),
