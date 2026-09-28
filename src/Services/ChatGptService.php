@@ -17,7 +17,7 @@ class ChatGptService
 
     private function getApiKey(): ?string
     {
-        return Setting::getValue('chatgpt_api_key');
+        return app(\hexa_core\Services\CredentialService::class)->get('chatgpt', 'api_key');
     }
 
     public function hasApiKey(): bool

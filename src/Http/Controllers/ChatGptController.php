@@ -5,7 +5,6 @@ namespace hexa_package_chatgpt\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use hexa_package_chatgpt\Services\ChatGptService;
-use hexa_core\Models\Setting;
 
 /**
  * ChatGptController — handles raw view and API endpoints for the ChatGPT package.
@@ -19,7 +18,7 @@ class ChatGptController extends Controller
      */
     public function settings()
     {
-        $apiKey = Setting::getValue('chatgpt_api_key', '');
+        $apiKey = (app(\hexa_core\Services\CredentialService::class)->get('chatgpt', 'api_key') ?? '');
         return view('chatgpt::settings.index', [
             'hasApiKey' => !empty($apiKey),
             'maskedKey' => $this->maskApiKey($apiKey),
@@ -40,7 +39,7 @@ class ChatGptController extends Controller
         ]);
         $apiKey = trim((string) $validated['api_key']);
 
-        Setting::setValue('chatgpt_api_key', $apiKey);
+        app(\hexa_core\Services\CredentialService::class)->store('chatgpt', 'api_key', (string) $apiKey);
 
         return response()->json([
             'success' => true,
@@ -89,7 +88,7 @@ class ChatGptController extends Controller
      */
     public function raw()
     {
-        $apiKey = Setting::getValue('chatgpt_api_key', '');
+        $apiKey = (app(\hexa_core\Services\CredentialService::class)->get('chatgpt', 'api_key') ?? '');
         $maskedKey = $this->maskApiKey($apiKey);
 
         return view('chatgpt::raw.index', [
